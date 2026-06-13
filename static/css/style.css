@@ -426,6 +426,11 @@ textarea:focus {
   background: #fff8f5;
 }
 
+.loading-state {
+  border-color: rgba(31, 122, 104, 0.35);
+  background: #f4fbf9;
+}
+
 @media (max-width: 920px) {
   .intro,
   .workspace {

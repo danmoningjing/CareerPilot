@@ -100,6 +100,14 @@ function renderRecommendations(jobs) {
   `).join("");
 }
 
+function renderLoading() {
+  previewContent.className = "empty-state loading-state";
+  previewContent.innerHTML = `
+    <strong>正在生成岗位 TOP5...</strong>
+    <p>系统正在提交求职画像，并读取后端模拟推荐数据。</p>
+  `;
+}
+
 function renderError(message) {
   previewContent.className = "empty-state error-state";
   previewContent.innerHTML = `
@@ -122,7 +130,7 @@ async function requestRecommendations(profile) {
     throw new Error(data.error || "生成推荐失败");
   }
 
-  return data.top_jobs || [];
+  return data;
 }
 
 form.addEventListener("submit", async (event) => {
@@ -138,12 +146,17 @@ form.addEventListener("submit", async (event) => {
   formHint.textContent = "正在提交到 /api/recommend 并生成模拟推荐。";
   submitButton.disabled = true;
   submitButton.textContent = "生成中...";
+  renderLoading();
 
   try {
-    const jobs = await requestRecommendations(profile);
-    renderRecommendations(jobs);
+    const data = await requestRecommendations(profile);
+    renderRecommendations(data.top_jobs || []);
     profileStatus.textContent = "已生成";
-    formHint.textContent = "已返回模拟岗位 TOP5，下一步可以替换为真实 AI 推荐。";
+    formHint.textContent = data.notice || (
+      data.source === "ai"
+        ? "已返回 AI 生成的岗位 TOP5。"
+        : "已返回模拟岗位 TOP5。"
+    );
   } catch (error) {
     renderError(error.message);
     profileStatus.textContent = "失败";
