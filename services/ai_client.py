@@ -1,7 +1,5 @@
 import json
 import os
-import urllib.error
-import urllib.request
 
 
 DEFAULT_API_BASE_URL = "https://api.openai.com/v1/chat/completions"
@@ -100,29 +98,45 @@ def build_recommendation_prompt(profile):
 
 
 def _post_json(url, api_key, payload):
-    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-    request = urllib.request.Request(
-        url,
-        data=body,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
+    try:
+        import requests
+    except ImportError as error:
+        raise AIClientError("缺少 requests 依赖，请先运行 pip install -r requirements.txt") from error
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+
+    _validate_headers(headers)
 
     try:
-        with urllib.request.urlopen(request, timeout=45) as response:
-            return json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as error:
-        detail = error.read().decode("utf-8", errors="ignore")
-        raise AIClientError(f"AI 接口返回错误 {error.code}: {detail[:160]}") from error
-    except urllib.error.URLError as error:
-        raise AIClientError(f"无法连接 AI 接口：{error.reason}") from error
-    except TimeoutError as error:
+        response = requests.post(
+            url,
+            headers=headers,
+            json=payload,
+            timeout=45,
+        )
+        response.raise_for_status()
+        return response.json()
+    except requests.Timeout as error:
         raise AIClientError("AI 接口请求超时") from error
+    except requests.RequestException as error:
+        raise AIClientError("AI 接口请求失败") from error
     except json.JSONDecodeError as error:
         raise AIClientError("AI 接口返回了无法解析的 JSON") from error
+    except UnicodeEncodeError as error:
+        raise AIClientError("AI 请求头包含非 ASCII 字符，请检查 API Key 配置") from error
+
+
+def _validate_headers(headers):
+    for name, value in headers.items():
+        try:
+            name.encode("ascii")
+            value.encode("latin-1")
+        except UnicodeEncodeError as error:
+            raise AIClientError("AI 请求头包含非 ASCII 字符，请检查 API Key 配置") from error
 
 
 def _extract_message_content(response_data):

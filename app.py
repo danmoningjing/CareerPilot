@@ -1,6 +1,6 @@
 from flask import Flask, jsonify, render_template, request
 
-from services.ai_client import AIClientError, generate_job_recommendations
+from services.ai_client import generate_job_recommendations
 from services.job_matcher import get_mock_recommendations
 from utils.env_loader import load_env_file
 from utils.validators import validate_profile
@@ -34,12 +34,12 @@ def recommend_jobs():
             "source": "ai",
             "top_jobs": recommendations,
         })
-    except AIClientError as error:
+    except Exception:
         recommendations = get_mock_recommendations(profile)
         return jsonify({
             "profile": profile,
             "source": "mock_fallback",
-            "notice": f"AI 推荐暂时不可用，已返回模拟推荐：{error}",
+            "notice": "AI 推荐暂时不可用，已返回模拟推荐。请稍后重试或检查本地 API 配置。",
             "top_jobs": recommendations,
         })
 
