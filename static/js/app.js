@@ -3,6 +3,10 @@ const previewContent = document.querySelector("#previewContent");
 const profileStatus = document.querySelector("#profileStatus");
 const formHint = document.querySelector("#formHint");
 const submitButton = form.querySelector('button[type="submit"]');
+const resultActions = document.querySelector("#resultActions");
+const regenerateButton = document.querySelector("#regenerateButton");
+const copyButton = document.querySelector("#copyButton");
+let latestRecommendations = [];
 
 function getCheckedValues(name) {
   return Array.from(document.querySelectorAll(`input[name="${name}"]:checked`))
@@ -33,6 +37,39 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function normalizeScore(score) {
+  const value = Number.parseInt(score, 10);
+  if (Number.isNaN(value)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.min(100, value));
+}
+
+function getDifficultyClass(difficulty) {
+  if (String(difficulty).includes("高")) {
+    return "difficulty-high";
+  }
+  if (String(difficulty).includes("低")) {
+    return "difficulty-low";
+  }
+
+  return "difficulty-medium";
+}
+
+function groupActionPlanByWeek(steps) {
+  const fallbackWeeks = ["第1周", "第2周", "第3周", "第4周"];
+
+  return fallbackWeeks.map((week, index) => ({
+    week,
+    text: steps[index] || "根据岗位反馈调整学习和投递计划。",
+  }));
+}
+
+function setResultActionsVisible(visible) {
+  resultActions.hidden = !visible;
 }
 
 function renderProfile(profile) {
@@ -70,19 +107,31 @@ function renderProfile(profile) {
 }
 
 function renderRecommendations(jobs) {
+  latestRecommendations = jobs;
+  setResultActionsVisible(jobs.length > 0);
+
   previewContent.className = "recommendation-list";
   previewContent.innerHTML = jobs.map((job, index) => `
-    <article class="job-card">
+    <article class="job-card ${index === 0 ? "featured-job" : ""}">
       <div class="job-card-header">
-        <div>
+        <div class="job-title-group">
           <span class="job-rank">TOP ${index + 1}</span>
           <h3>${escapeHtml(job.title)}</h3>
         </div>
-        <strong class="match-score">${escapeHtml(job.match_score)}%</strong>
+        <div class="match-block" aria-label="匹配度 ${normalizeScore(job.match_score)}%">
+          <strong>${normalizeScore(job.match_score)}%</strong>
+          <span>匹配度</span>
+        </div>
       </div>
-      <p class="job-reason">${escapeHtml(job.reason)}</p>
+      <div class="score-track">
+        <span style="width: ${normalizeScore(job.match_score)}%"></span>
+      </div>
       <div class="job-meta">
-        <span>难度：${escapeHtml(job.difficulty)}</span>
+        <span class="difficulty-pill ${getDifficultyClass(job.difficulty)}">难度：${escapeHtml(job.difficulty)}</span>
+      </div>
+      <div class="job-section reason-section">
+        <h4>推荐理由</h4>
+        <p class="job-reason">${escapeHtml(job.reason)}</p>
       </div>
       <div class="job-section">
         <h4>需要补充的能力</h4>
@@ -92,15 +141,21 @@ function renderRecommendations(jobs) {
       </div>
       <div class="job-section">
         <h4>30天行动路线</h4>
-        <ol>
-          ${job.action_plan_30_days.map((step) => `<li>${escapeHtml(step)}</li>`).join("")}
-        </ol>
+        <div class="weekly-plan">
+          ${groupActionPlanByWeek(job.action_plan_30_days).map((item) => `
+            <div class="week-item">
+              <span>${escapeHtml(item.week)}</span>
+              <p>${escapeHtml(item.text)}</p>
+            </div>
+          `).join("")}
+        </div>
       </div>
     </article>
   `).join("");
 }
 
 function renderLoading() {
+  setResultActionsVisible(false);
   previewContent.className = "empty-state loading-state";
   previewContent.innerHTML = `
     <strong>正在生成岗位 TOP5...</strong>
@@ -109,11 +164,44 @@ function renderLoading() {
 }
 
 function renderError(message) {
+  setResultActionsVisible(false);
   previewContent.className = "empty-state error-state";
   previewContent.innerHTML = `
     <strong>${escapeHtml(message)}</strong>
     <p>请检查表单内容后重新提交。</p>
   `;
+}
+
+function formatRecommendationsForCopy(jobs) {
+  return jobs.map((job, index) => {
+    const weeklyPlan = groupActionPlanByWeek(job.action_plan_30_days)
+      .map((item) => `${item.week}：${item.text}`)
+      .join("\n");
+
+    return [
+      `TOP ${index + 1} ${job.title}`,
+      `匹配度：${job.match_score}%`,
+      `岗位难度：${job.difficulty}`,
+      `推荐理由：${job.reason}`,
+      `需要补充的能力：${job.missing_skills.join("、")}`,
+      `30天行动路线：\n${weeklyPlan}`,
+    ].join("\n");
+  }).join("\n\n");
+}
+
+async function copyRecommendations() {
+  if (!latestRecommendations.length) {
+    return;
+  }
+
+  const text = formatRecommendationsForCopy(latestRecommendations);
+
+  try {
+    await navigator.clipboard.writeText(text);
+    formHint.textContent = "推荐结果已复制。";
+  } catch (error) {
+    renderError("复制失败，请在浏览器中允许剪贴板权限后重试。");
+  }
 }
 
 async function requestRecommendations(profile) {
@@ -169,6 +257,8 @@ form.addEventListener("submit", async (event) => {
 
 form.addEventListener("reset", () => {
   window.setTimeout(() => {
+    latestRecommendations = [];
+    setResultActionsVisible(false);
     profileStatus.textContent = "待填写";
     formHint.textContent = "提交后会调用 /api/recommend，当前返回模拟岗位推荐。";
     previewContent.className = "empty-state";
@@ -178,3 +268,9 @@ form.addEventListener("reset", () => {
     `;
   });
 });
+
+regenerateButton.addEventListener("click", () => {
+  form.requestSubmit();
+});
+
+copyButton.addEventListener("click", copyRecommendations);
