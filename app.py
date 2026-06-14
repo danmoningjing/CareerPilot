@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from flask import Flask, jsonify, render_template, request
 
 from services.ai_client import generate_job_recommendations
@@ -14,6 +16,15 @@ app = Flask(__name__)
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.get("/health")
+def health_check():
+    return jsonify({
+        "status": "ok",
+        "service": "careerpilot",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    })
 
 
 @app.post("/api/recommend")

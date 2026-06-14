@@ -216,3 +216,50 @@ JavaScript 语法检查：
 ```powershell
 node --check static/js/app.js
 ```
+
+## Render 部署
+
+Render 上建议创建 Web Service，并使用 Python 环境。
+
+Build Command：
+
+```text
+pip install -r requirements.txt
+```
+
+Start Command：
+
+```text
+gunicorn app:app --bind 0.0.0.0:$PORT
+```
+
+需要在 Render Dashboard 的 Environment Variables 中配置：
+
+```text
+AI_API_KEY=your_api_key_here
+AI_MODEL=your_model_name_here
+AI_API_BASE_URL=https://api.openai.com/v1/chat/completions
+```
+
+注意：
+
+- 不要把真实 API Key 写进代码、README 或 `render.yaml`。
+- 不要提交真实 `.env` 文件。
+- Render 线上环境变量应在 Dashboard 中填写。
+- 如果 AI API 配置错误或调用失败，系统会 fallback 到 mock 推荐。
+
+部署后可以测试健康检查：
+
+```text
+https://your-render-service.onrender.com/health
+```
+
+正常返回示例：
+
+```json
+{
+  "service": "careerpilot",
+  "status": "ok",
+  "timestamp": "2026-06-14T00:00:00+00:00"
+}
+```

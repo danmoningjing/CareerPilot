@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: careerpilot
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    envVars:
+      - key: AI_API_KEY
+        sync: false
+      - key: AI_MODEL
+        sync: false
+      - key: AI_API_BASE_URL
+        sync: false
